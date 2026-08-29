@@ -2,6 +2,30 @@ const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
 
+async function saveToSentFolder(mailOptions, rawMessage) {
+  const { ImapFlow } = await import('imapflow');
+  const client = new ImapFlow({
+    host: process.env.IMAP_HOST || 'imap.hostinger.com',
+    port: Number(process.env.IMAP_PORT || 993),
+    secure: true,
+    auth: {
+      user: process.env.IMAP_USER || process.env.SMTP_USER,
+      pass: process.env.IMAP_PASSWORD || process.env.SMTP_PASSWORD
+    },
+    logger: false
+  });
+  try {
+    await client.connect();
+    const mailboxes = await client.list();
+    const sentMailbox = mailboxes.find(mailbox => /(^|[./ ])sent( items)?$/i.test(mailbox.path))
+      || mailboxes.find(mailbox => /sent/i.test(mailbox.path));
+    if (!sentMailbox) throw new Error('Hostinger Sent mailbox was not found');
+    await client.append(sentMailbox.path, rawMessage, ['\\Seen'], new Date());
+  } finally {
+    await client.logout().catch(() => {});
+  }
+}
+
 function sendJson(res, status, body) {
   res.status(status).json(body);
 }
@@ -44,14 +68,23 @@ module.exports = async function handler(req, res) {
         if (!fs.existsSync(filePath)) throw new Error(`Attachment not found: ${filename}`);
         return { filename, path: filePath };
       });
-      const info = await transporter.sendMail({
+      const mailOptions = {
         from: process.env.SMTP_USER,
         to: message.email,
         subject,
         html: message.html,
         attachments
-      });
-      results.push({ email: message.email, messageId: info.messageId });
+      };
+      const rawMessage = await nodemailer.createTransport({ streamTransport: true, buffer: true }).sendMail(mailOptions);
+      const info = await transporter.sendMail(mailOptions);
+      let savedToSent = false;
+      try {
+        await saveToSentFolder(mailOptions, rawMessage.message);
+        savedToSent = true;
+      } catch (sentError) {
+        console.warn('Message sent but could not be copied to Hostinger Sent:', sentError.message);
+      }
+      results.push({ email: message.email, messageId: info.messageId, savedToSent });
     }
     return sendJson(res, 200, { sent: results.length, results });
   } catch (error) {
