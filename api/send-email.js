@@ -3,6 +3,108 @@ const fs = require('fs');
 const nodemailer = require('nodemailer');
 const { requireAuth } = require('./auth');
 
+const seedTemplates = {
+  faith: {
+    html: 'assets/thank-you/Seeds_of_Faith_Gift_Email.html',
+    attachments: ['assets/thank-you/Seeds_of_Faith.pdf']
+  },
+  love: {
+    html: 'assets/thank-you/Seeds_of_Love_Gift_Email.html',
+    attachments: ['assets/thank-you/Seeds_of_Love.pdf']
+  },
+  healing: {
+    html: 'assets/thank-you/Seeds_of_Healing_Gift_Email.html',
+    attachments: ['assets/thank-you/Seeds_of_Healing.pdf']
+  },
+  hope: {
+    html: 'assets/thank-you/Seeds_of_Hope_Gift_Email.html',
+    attachments: ['assets/thank-you/Seeds_of_Hope.pdf']
+  },
+  prayer: {
+    html: 'assets/thank-you/Seeds_of_Prayer_Gift_Email.html',
+    attachments: ['assets/thank-you/Seeds_of_Prayer.pdf']
+  }
+};
+
+const giftFromUsTemplate = {
+  html: 'gift-from-us-template.html',
+  attachments: Object.values(seedTemplates).flatMap(template => template.attachments)
+};
+
+const templateCache = new Map();
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>'"]/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    "'": '&#039;',
+    '"': '&quot;'
+  })[character]);
+}
+
+function personalizeHtml(html, name) {
+  if (!name) return html;
+  const safeName = escapeHtml(name);
+  return html
+    .replace(/\{\{\s*(?:name|recipient[_-]?name)\s*\}\}/gi, safeName)
+    .replace(/\bBeliever\b/gi, safeName)
+    .replace(/\bBeliver\b/gi, safeName);
+}
+
+function readTemplate(relativePath) {
+  if (!templateCache.has(relativePath)) {
+    const filePath = path.join(process.cwd(), relativePath);
+    if (!fs.existsSync(filePath)) throw new Error(`Email template not found: ${path.basename(relativePath)}`);
+    templateCache.set(relativePath, fs.readFileSync(filePath, 'utf8'));
+  }
+  return templateCache.get(relativePath);
+}
+
+function resolveMessageContent(message) {
+  let html = message.html;
+  let attachmentNames = Array.isArray(message.attachments)
+    ? message.attachments
+    : message.attachments ? [message.attachments] : [];
+
+  if (message.template === 'newsletter') {
+    const template = seedTemplates[message.seed];
+    if (!template) throw new Error('Unknown seed email template');
+    html = readTemplate(template.html);
+    attachmentNames = template.attachments;
+  } else if (message.template === 'meeting') {
+    html = readTemplate(giftFromUsTemplate.html);
+    attachmentNames = giftFromUsTemplate.attachments;
+  }
+
+  if (!html) throw new Error('Email content is required');
+  return { html: personalizeHtml(html, message.name), attachmentNames };
+}
+
+function createFileAttachments(attachmentNames) {
+  return attachmentNames.map(relativePath => {
+    const filename = path.basename(relativePath);
+    if (!relativePath.startsWith('assets/thank-you/') || filename !== relativePath.split('/').pop()) {
+      throw new Error('Invalid attachment path');
+    }
+    const filePath = path.join(process.cwd(), relativePath);
+    if (!fs.existsSync(filePath)) throw new Error(`Attachment not found: ${filename}`);
+    return { filename, path: filePath };
+  });
+}
+
+function publicDeliveryError(error) {
+  if (/^(Email template not found|Attachment not found|Invalid attachment path|Unknown seed email template|Email content is required)/.test(error.message)) {
+    return error.message;
+  }
+  if (error.code === 'EAUTH') return 'SMTP authentication failed';
+  if (['ECONNECTION', 'ECONNREFUSED', 'ECONNRESET', 'EDNS', 'ETIMEDOUT'].includes(error.code)) {
+    return 'Could not connect to the email server';
+  }
+  if (error.responseCode >= 500) return 'The recipient was rejected by the email server';
+  return 'Email delivery failed';
+}
+
 async function saveToSentFolder(mailOptions, rawMessage) {
   const { ImapFlow } = await import('imapflow');
   const client = new ImapFlow({
@@ -83,23 +185,14 @@ module.exports = async function handler(req, res) {
   });
 
   try {
-    const validMessages = messages.filter(message => message.email && message.html);
+    const validMessages = messages.filter(message => message.email && (message.html || message.template));
+    if (!validMessages.length) return sendJson(res, 400, { error: 'No valid email messages were supplied' });
     const results = [];
     for (let index = 0; index < validMessages.length; index += 3) {
       const batchResults = await Promise.all(validMessages.slice(index, index + 3).map(async message => {
-      const attachmentNames = Array.isArray(message.attachments)
-        ? message.attachments
-        : message.attachments ? [message.attachments] : [];
-      const attachments = attachmentNames.map(relativePath => {
-        const filename = path.basename(relativePath);
-        if (!relativePath.startsWith('assets/thank-you/') || filename !== relativePath.split('/').pop()) {
-          throw new Error('Invalid attachment path');
-        }
-        const filePath = path.join(process.cwd(), relativePath);
-        if (!fs.existsSync(filePath)) throw new Error(`Attachment not found: ${filename}`);
-        return { filename, path: filePath };
-      });
-      const converted = inlineDataImages(message.html);
+      const resolved = resolveMessageContent(message);
+      const attachments = createFileAttachments(resolved.attachmentNames);
+      const converted = inlineDataImages(resolved.html);
       const mailOptions = {
         from: process.env.SMTP_USER,
         to: message.email,
@@ -122,13 +215,16 @@ module.exports = async function handler(req, res) {
     }
     let historySaved = false;
     try {
-      historySaved = await recordHistory(messages);
+      historySaved = await recordHistory(validMessages);
     } catch (historyError) {
       console.warn('Messages sent but history could not be recorded:', historyError.message);
     }
     return sendJson(res, 200, { sent: results.length, results, historySaved });
   } catch (error) {
     console.error('Email delivery failed:', error);
-    return sendJson(res, 502, { error: 'Email delivery failed' });
+    return sendJson(res, 502, { error: publicDeliveryError(error) });
   }
 };
+
+module.exports.resolveMessageContent = resolveMessageContent;
+module.exports.createFileAttachments = createFileAttachments;

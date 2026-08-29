@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/send-email.js": {
+      "includeFiles": "{gift-from-us-template.html,assets/thank-you/**}",
+      "maxDuration": 60
+    }
+  }
+}

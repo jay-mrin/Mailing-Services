@@ -748,9 +748,11 @@ ${body}
       const messages = await Promise.all(recipientEntries.map(async recipient => {
         let html = els.sourceCode.value;
         let messageSubject = els.subject.value;
+        let selectedSeed;
+        const serverTemplate = currentTemplate === 'newsletter' || currentTemplate === 'meeting';
         if (currentTemplate === 'newsletter') {
-          const seed = seedOptions[recipient.seed] ? recipient.seed : 'faith';
-          html = await getSeedHtml(seed);
+          selectedSeed = seedOptions[recipient.seed] ? recipient.seed : 'faith';
+          html = await getSeedHtml(selectedSeed);
           const parsed = new DOMParser().parseFromString(html, 'text/html');
           messageSubject = parsed.querySelector('title')?.textContent.trim() || messageSubject;
         }
@@ -758,12 +760,10 @@ ${body}
           email: recipient.email,
           name: recipient.name,
           subject: messageSubject,
-          html: personalizeHtml(html, recipient.name),
-          attachments: currentTemplate === 'newsletter'
-            ? [seedOptions[recipient.seed]?.pdf].filter(Boolean)
-            : currentTemplate === 'meeting'
-              ? giftAttachmentFiles.map(filename => `assets/thank-you/${filename}`)
-              : []
+          template: serverTemplate ? currentTemplate : undefined,
+          seed: selectedSeed,
+          html: serverTemplate ? undefined : personalizeHtml(html, recipient.name),
+          attachments: []
         };
       }));
       let sentCount = 0;
@@ -773,8 +773,15 @@ ${body}
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ subject: message.subject, messages: [message] })
         });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(result.error || `Email delivery failed for ${message.email}`);
+        const responseBody = await response.text();
+        let result = {};
+        try { result = JSON.parse(responseBody); } catch (parseError) { /* Vercel errors can be plain text. */ }
+        if (!response.ok) {
+          const errorMessage = response.status === 413
+            ? 'This email template is too large for delivery'
+            : result.error || `Email delivery failed for ${message.email}`;
+          throw new Error(errorMessage);
+        }
         sentCount += 1;
         const percent = Math.round((sentCount / messages.length) * 100);
         els.sendProgressFill.style.width = `${percent}%`;
