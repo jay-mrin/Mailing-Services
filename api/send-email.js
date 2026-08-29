@@ -30,6 +30,23 @@ function sendJson(res, status, body) {
   res.status(status).json(body);
 }
 
+function inlineDataImages(html) {
+  const inlineAttachments = [];
+  const convertedHtml = html.replace(/data:(image\/[a-z0-9.+-]+);([^,]*?base64),([a-z0-9+/=\s]+)/gi, (match, contentType, metadata, encoded) => {
+    const cid = `inline-image-${inlineAttachments.length}@christgardenmail`;
+    const filenameMatch = metadata.match(/filename=([^;]+)/i);
+    inlineAttachments.push({
+      filename: filenameMatch ? decodeURIComponent(filenameMatch[1]) : `image-${inlineAttachments.length + 1}`,
+      content: encoded.replace(/\s/g, ''),
+      encoding: 'base64',
+      cid,
+      contentType
+    });
+    return `cid:${cid}`;
+  });
+  return { html: convertedHtml, inlineAttachments };
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -68,12 +85,13 @@ module.exports = async function handler(req, res) {
         if (!fs.existsSync(filePath)) throw new Error(`Attachment not found: ${filename}`);
         return { filename, path: filePath };
       });
+      const converted = inlineDataImages(message.html);
       const mailOptions = {
         from: process.env.SMTP_USER,
         to: message.email,
         subject,
-        html: message.html,
-        attachments
+        html: converted.html,
+        attachments: attachments.concat(converted.inlineAttachments)
       };
       const rawMessage = await nodemailer.createTransport({ streamTransport: true, buffer: true }).sendMail(mailOptions);
       const info = await transporter.sendMail(mailOptions);
