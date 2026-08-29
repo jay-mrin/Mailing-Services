@@ -83,9 +83,7 @@ module.exports = async function handler(req, res) {
   });
 
   try {
-    const results = [];
-    for (const message of messages) {
-      if (!message.email || !message.html) continue;
+    const results = await Promise.all(messages.filter(message => message.email && message.html).map(async message => {
       const attachmentNames = Array.isArray(message.attachments)
         ? message.attachments
         : message.attachments ? [message.attachments] : [];
@@ -102,7 +100,7 @@ module.exports = async function handler(req, res) {
       const mailOptions = {
         from: process.env.SMTP_USER,
         to: message.email,
-        subject,
+        subject: message.subject || subject,
         html: converted.html,
         attachments: attachments.concat(converted.inlineAttachments)
       };
@@ -115,8 +113,8 @@ module.exports = async function handler(req, res) {
       } catch (sentError) {
         console.warn('Message sent but could not be copied to Hostinger Sent:', sentError.message);
       }
-      results.push({ email: message.email, messageId: info.messageId, savedToSent });
-    }
+      return { email: message.email, messageId: info.messageId, savedToSent };
+    }));
     let historySaved = false;
     try {
       historySaved = await recordHistory(messages);

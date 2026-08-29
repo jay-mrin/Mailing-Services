@@ -738,17 +738,28 @@ ${body}
 
     setStatus('Sending...', 'sending');
     els.sendBtn.disabled = true;
-    const messages = recipientEntries.map(recipient => ({
-      email: recipient.email,
-      name: recipient.name,
-      html: personalizeHtml(els.sourceCode.value, recipient.name),
-      attachments: currentTemplate === 'newsletter'
-        ? [seedOptions[recipient.seed]?.pdf].filter(Boolean)
-        : currentTemplate === 'meeting'
-          ? giftAttachmentFiles.map(filename => `assets/thank-you/${filename}`)
-          : []
-    }));
     try {
+      const messages = await Promise.all(recipientEntries.map(async recipient => {
+        let html = els.sourceCode.value;
+        let messageSubject = els.subject.value;
+        if (currentTemplate === 'newsletter') {
+          const seed = seedOptions[recipient.seed] ? recipient.seed : 'faith';
+          html = await getSeedHtml(seed);
+          const parsed = new DOMParser().parseFromString(html, 'text/html');
+          messageSubject = parsed.querySelector('title')?.textContent.trim() || messageSubject;
+        }
+        return {
+          email: recipient.email,
+          name: recipient.name,
+          subject: messageSubject,
+          html: personalizeHtml(html, recipient.name),
+          attachments: currentTemplate === 'newsletter'
+            ? [seedOptions[recipient.seed]?.pdf].filter(Boolean)
+            : currentTemplate === 'meeting'
+              ? giftAttachmentFiles.map(filename => `assets/thank-you/${filename}`)
+              : []
+        };
+      }));
       const response = await fetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
