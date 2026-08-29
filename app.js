@@ -614,7 +614,7 @@ ${body}
     }
   });
 
-  els.sendBtn.addEventListener('click', () => {
+  els.sendBtn.addEventListener('click', async () => {
     const recipientInputs = Array.from(els.recipientList.querySelectorAll('.recipient-input'));
     const invalidRecipient = recipientInputs.find(input => input.value.trim() && !input.checkValidity());
     const recipientEntries = getRecipientEntries();
@@ -641,25 +641,32 @@ ${body}
 
     setStatus('Sending...', 'sending');
     els.sendBtn.disabled = true;
-    window.setTimeout(() => {
-      setStatus('Email ready for backend connection', 'success');
-      showToast('Email composed successfully');
-      els.sendBtn.disabled = false;
-      console.log('📧 Email Payload:', {
-        recipients,
-        personalizedBodies: recipientEntries.map(recipient => ({
-          email: recipient.email,
-          name: recipient.name,
-          seed: currentTemplate === 'newsletter' ? seedOptions[recipient.seed]?.label : undefined,
-          attachment: currentTemplate === 'newsletter' ? seedOptions[recipient.seed]?.pdf : currentTemplate === 'meeting' ? giftAttachmentFiles.map(filename => `assets/thank-you/${filename}`) : undefined,
-          html: personalizeHtml(els.sourceCode.value, recipient.name)
-        })),
-        subject: els.subject.value,
-        body: getBodyHtml(),
-        attachments: attachments.map(file => file.name),
-        html: buildHtmlDoc()
+    const messages = recipientEntries.map(recipient => ({
+      email: recipient.email,
+      name: recipient.name,
+      html: personalizeHtml(els.sourceCode.value, recipient.name),
+      attachments: currentTemplate === 'newsletter'
+        ? [seedOptions[recipient.seed]?.pdf].filter(Boolean)
+        : currentTemplate === 'meeting'
+          ? giftAttachmentFiles.map(filename => `assets/thank-you/${filename}`)
+          : []
+    }));
+    try {
+      const response = await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: els.subject.value, messages })
       });
-    }, 600);
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Email delivery failed');
+      setStatus('Email sent successfully', 'success');
+      showToast(`${result.sent || recipients.length} email(s) sent successfully`);
+    } catch (error) {
+      setStatus('Email could not be sent', 'error');
+      showToast(error.message || 'Email delivery failed', 'error');
+    } finally {
+      els.sendBtn.disabled = false;
+    }
   });
 
   els.saveDraftBtn.addEventListener('click', () => {
