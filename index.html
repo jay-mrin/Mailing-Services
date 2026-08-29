@@ -10,6 +10,17 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
 </head>
 <body>
+  <section class="auth-screen" id="authScreen">
+    <form class="auth-card" id="authForm">
+      <h1>ChristgardenMail</h1>
+      <p>Sign in to access your mail composer.</p>
+      <input id="loginUsername" type="text" placeholder="Username" autocomplete="username" required>
+      <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" required>
+      <label class="remember-label"><input id="rememberMe" type="checkbox"> Remember me for 30 days</label>
+      <button class="btn btn-primary" type="submit">Sign in</button>
+      <div class="auth-error" id="authError" role="alert"></div>
+    </form>
+  </section>
   <div class="app-container">
     <!-- Header -->
     <header class="app-header">
@@ -21,6 +32,8 @@
         <h1 class="brand-title">ChristgardenMail</h1>
       </div>
       <div class="header-meta">
+        <button class="history-btn" id="historyBtn" type="button">History</button>
+        <button class="logout-btn" id="logoutBtn" type="button">Log out</button>
         <span class="status-badge" id="connectionStatus">
           <span class="status-dot"></span> Ready
         </span>
@@ -63,7 +76,7 @@
               <label for="toEmail">To <span class="required">*</span></label>
               <div class="recipient-list" id="recipientList">
                 <div class="recipient-row">
-                  <input type="email" id="toEmail" class="recipient-input recipient-email" placeholder="recipient@example.com" autocomplete="email">
+                  <input type="email" id="toEmail" class="recipient-input recipient-email" placeholder="recipient@example.com" autocomplete="email" list="historyEmails">
                   <input type="text" class="recipient-name" placeholder="Recipient name" autocomplete="name" aria-label="Recipient name">
                 </div>
               </div>
@@ -161,6 +174,13 @@
   <div class="toast" id="toast">
     <span class="toast-icon">&#10003;</span>
     <span class="toast-message" id="toastMsg">Action completed</span>
+  </div>
+  <datalist id="historyEmails"></datalist>
+  <div class="history-modal" id="historyModal" hidden>
+    <div class="history-dialog" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+      <div class="history-dialog-header"><h2 id="historyTitle">Sent History</h2><button id="closeHistory" type="button" aria-label="Close history">&times;</button></div>
+      <div id="historyList" class="history-list"><p class="history-empty">No sent mail yet.</p></div>
+    </div>
   </div>
 
   <script src="app.js"></script>

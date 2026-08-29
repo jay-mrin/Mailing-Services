@@ -221,7 +221,19 @@ Me</p>`
     renderHtmlBtn: $('#renderHtmlBtn'),
     copyHtml: $('#copyHtml'),
     toast: $('#toast'),
-    toastMsg: $('#toastMsg')
+    toastMsg: $('#toastMsg'),
+    historyBtn: $('#historyBtn'),
+    historyModal: $('#historyModal'),
+    closeHistory: $('#closeHistory'),
+    historyList: $('#historyList'),
+    historyEmails: $('#historyEmails'),
+    authScreen: $('#authScreen'),
+    authForm: $('#authForm'),
+    loginUsername: $('#loginUsername'),
+    loginPassword: $('#loginPassword'),
+    rememberMe: $('#rememberMe'),
+    authError: $('#authError'),
+    logoutBtn: $('#logoutBtn')
   };
 
   let currentTemplate = 'welcome';
@@ -230,6 +242,35 @@ Me</p>`
   let thankYouRenderVersion = 0;
   let templateLoadVersion = 0;
   let templateLoading = false;
+  let sentHistory = [];
+
+  async function initAuth() {
+    els.logoutBtn.addEventListener('click', async () => {
+      await fetch('/api/logout', { method: 'POST' });
+      window.location.reload();
+    });
+    try {
+      const response = await fetch('/api/session');
+      if (response.ok) {
+        els.authScreen.hidden = true;
+        return;
+      }
+    } catch (error) { /* show login */ }
+    els.authForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      els.authError.textContent = '';
+      const response = await fetch('/api/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: els.loginUsername.value, password: els.loginPassword.value, remember: els.rememberMe.checked })
+      });
+      if (!response.ok) {
+        els.authError.textContent = 'Invalid username or password.';
+        return;
+      }
+      els.authScreen.hidden = true;
+      loadHistory();
+    });
+  }
 
   function escapeHtml(value) {
     const div = document.createElement('div');
@@ -280,6 +321,31 @@ Me</p>`
     return getRecipientEntries()[0]?.name || '';
   }
 
+  function renderHistory() {
+    const grouped = new Map();
+    sentHistory.forEach(item => {
+      const key = item.recipient_email.toLowerCase();
+      if (!grouped.has(key)) grouped.set(key, { email: item.recipient_email, name: item.recipient_name || '', dates: [] });
+      grouped.get(key).dates.push(item.sent_at);
+    });
+    els.historyList.innerHTML = grouped.size ? Array.from(grouped.values()).map(item => `
+      <details class="history-entry"><summary><span>${escapeHtml(item.email)}</span><strong>${item.dates.length}</strong></summary>
+        <div class="history-dates">${item.dates.map(date => `<time>${new Date(date).toLocaleString()}</time>`).join('')}</div>
+      </details>`).join('') : '<p class="history-empty">No sent mail yet.</p>';
+    els.historyEmails.innerHTML = Array.from(grouped.values()).map(item => `<option value="${escapeHtml(item.email)}" label="${escapeHtml(item.name)}"></option>`).join('');
+  }
+
+  async function loadHistory() {
+    try {
+      const response = await fetch('/api/history');
+      if (!response.ok) throw new Error('History unavailable');
+      sentHistory = await response.json();
+      renderHistory();
+    } catch (error) {
+      els.historyList.innerHTML = '<p class="history-empty">History is unavailable until Supabase is configured.</p>';
+    }
+  }
+
   function personalizeHtml(html, name = getFirstRecipientName()) {
     if (!name) return html;
     const safeName = escapeHtml(name);
@@ -299,7 +365,12 @@ Me</p>`
     input.className = 'recipient-input';
     input.placeholder = 'recipient@example.com';
     input.autocomplete = 'email';
+    input.setAttribute('list', 'historyEmails');
     input.value = recipient.email || '';
+    input.addEventListener('blur', () => {
+      const known = sentHistory.find(item => item.recipient_email.toLowerCase() === input.value.trim().toLowerCase() && item.recipient_name);
+      if (known && !nameInput.value) nameInput.value = known.recipient_name;
+    });
     row.appendChild(input);
 
     const nameInput = document.createElement('input');
@@ -538,6 +609,15 @@ ${body}
 
   els.templateButtons.forEach(bindTemplateButton);
 
+  els.historyBtn.addEventListener('click', async () => {
+    els.historyModal.hidden = false;
+    await loadHistory();
+  });
+  els.closeHistory.addEventListener('click', () => { els.historyModal.hidden = true; });
+  els.historyModal.addEventListener('click', event => {
+    if (event.target === els.historyModal) els.historyModal.hidden = true;
+  });
+
   els.addRecipient.addEventListener('click', () => addRecipientField().focus());
   els.sourceToggleBtn.addEventListener('click', () => {
     const expanded = !els.sourceCard.classList.toggle('collapsed');
@@ -745,8 +825,10 @@ ${body}
   });
 
   setRecipients();
+  loadHistory();
   loadTemplate('welcome');
   loadDraft();
+  initAuth();
 
   console.log('%c ChristgardenMail ', 'background:#6366f1;color:#fff;padding:4px 10px;border-radius:4px;font-weight:600;', 'Ready to compose!');
   console.log('Shortcuts: Ctrl+Enter = Send | Ctrl+S = Save Draft');

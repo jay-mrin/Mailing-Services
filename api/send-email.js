@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
+const { requireAuth } = require('./auth');
 
 async function saveToSentFolder(mailOptions, rawMessage) {
   const { ImapFlow } = await import('imapflow');
@@ -47,12 +48,24 @@ function inlineDataImages(html) {
   return { html: convertedHtml, inlineAttachments };
 }
 
+async function recordHistory(messages) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return false;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/sent_mail_history`, {
+    method: 'POST',
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify(messages.filter(message => message.email).map(message => ({ recipient_email: message.email, recipient_name: message.name || null })))
+  });
+  return response.ok;
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
+  if (!requireAuth(req, res)) return;
 
   const { subject, messages } = req.body || {};
   if (!subject || !Array.isArray(messages) || !messages.length) {
@@ -104,7 +117,13 @@ module.exports = async function handler(req, res) {
       }
       results.push({ email: message.email, messageId: info.messageId, savedToSent });
     }
-    return sendJson(res, 200, { sent: results.length, results });
+    let historySaved = false;
+    try {
+      historySaved = await recordHistory(messages);
+    } catch (historyError) {
+      console.warn('Messages sent but history could not be recorded:', historyError.message);
+    }
+    return sendJson(res, 200, { sent: results.length, results, historySaved });
   } catch (error) {
     console.error('Email delivery failed:', error);
     return sendJson(res, 502, { error: 'Email delivery failed' });
