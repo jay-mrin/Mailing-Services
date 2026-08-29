@@ -83,7 +83,10 @@ module.exports = async function handler(req, res) {
   });
 
   try {
-    const results = await Promise.all(messages.filter(message => message.email && message.html).map(async message => {
+    const validMessages = messages.filter(message => message.email && message.html);
+    const results = [];
+    for (let index = 0; index < validMessages.length; index += 3) {
+      const batchResults = await Promise.all(validMessages.slice(index, index + 3).map(async message => {
       const attachmentNames = Array.isArray(message.attachments)
         ? message.attachments
         : message.attachments ? [message.attachments] : [];
@@ -114,7 +117,9 @@ module.exports = async function handler(req, res) {
         console.warn('Message sent but could not be copied to Hostinger Sent:', sentError.message);
       }
       return { email: message.email, messageId: info.messageId, savedToSent };
-    }));
+      }));
+      results.push(...batchResults);
+    }
     let historySaved = false;
     try {
       historySaved = await recordHistory(messages);
