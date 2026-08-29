@@ -228,6 +228,7 @@ Me</p>`
   let attachments = [];
   let activeThankYouRow = null;
   let thankYouRenderVersion = 0;
+  let templateLoadVersion = 0;
 
   function escapeHtml(value) {
     const div = document.createElement('div');
@@ -362,7 +363,7 @@ Me</p>`
     return seedHtmlCache.get(seed);
   }
 
-  async function renderSelectedThankYou(row = activeThankYouRow) {
+  async function renderSelectedThankYou(row = activeThankYouRow, expectedTemplateVersion = templateLoadVersion) {
     const renderVersion = ++thankYouRenderVersion;
     const sourceRow = row || els.recipientList.querySelector('.recipient-row');
     const first = sourceRow ? {
@@ -372,30 +373,30 @@ Me</p>`
     const seed = seedOptions[first.seed] ? first.seed : 'faith';
     try {
       const source = await getSeedHtml(seed);
-      if (renderVersion !== thankYouRenderVersion) return;
+      if (renderVersion !== thankYouRenderVersion || expectedTemplateVersion !== templateLoadVersion) return;
       const parsed = new DOMParser().parseFromString(source, 'text/html');
       const title = parsed.querySelector('title')?.textContent.trim();
       if (title) els.subject.value = title;
       els.sourceCode.value = personalizeHtml(source, first.name);
       setPreviewDocument(els.sourceCode.value);
-      await loadSeedAttachment(seed, renderVersion);
+      await loadSeedAttachment(seed, renderVersion, expectedTemplateVersion);
     } catch (error) {
       showToast('Could not load the selected gift email', 'error');
       console.warn(error);
     }
   }
 
-  async function loadSeedAttachment(seed, renderVersion = thankYouRenderVersion) {
+  async function loadSeedAttachment(seed, renderVersion = thankYouRenderVersion, expectedTemplateVersion = templateLoadVersion) {
     const option = seedOptions[seed];
     const response = await fetch(option.pdf);
     if (!response.ok) throw new Error(`Could not load ${option.label} ebook`);
     const blob = await response.blob();
-    if (renderVersion !== thankYouRenderVersion) return;
+    if (renderVersion !== thankYouRenderVersion || expectedTemplateVersion !== templateLoadVersion) return;
     attachments = [new File([blob], option.pdf.split('/').pop(), { type: 'application/pdf' })];
     renderAttachments();
   }
 
-  async function renderGiftFromUs() {
+  async function renderGiftFromUs(expectedTemplateVersion = templateLoadVersion) {
     const renderVersion = ++thankYouRenderVersion;
     const row = activeThankYouRow || els.recipientList.querySelector('.recipient-row');
     const name = row?.querySelector('.recipient-name')?.value.trim() || getFirstRecipientName();
@@ -403,7 +404,7 @@ Me</p>`
       const response = await fetch('gift-from-us-template.html');
       if (!response.ok) throw new Error('Could not load Gift From us template');
       const source = await response.text();
-      if (renderVersion !== thankYouRenderVersion) return;
+      if (renderVersion !== thankYouRenderVersion || expectedTemplateVersion !== templateLoadVersion) return;
       const parsed = new DOMParser().parseFromString(source, 'text/html');
       const title = parsed.querySelector('title')?.textContent.trim();
       if (title) els.subject.value = title;
@@ -416,7 +417,7 @@ Me</p>`
         const blob = await fileResponse.blob();
         return new File([blob], filename, { type: 'application/pdf' });
       }));
-      if (renderVersion !== thankYouRenderVersion) return;
+      if (renderVersion !== thankYouRenderVersion || expectedTemplateVersion !== templateLoadVersion) return;
       attachments = files;
       renderAttachments();
     } catch (error) {
@@ -491,24 +492,26 @@ ${body}
   }
 
   async function loadTemplate(key) {
+    const loadVersion = ++templateLoadVersion;
     const template = templates[key];
     if (!template) return;
 
     currentTemplate = key;
     setThankYouMode(key === 'newsletter');
     if (key === 'newsletter') {
-      await renderSelectedThankYou();
+      await renderSelectedThankYou(activeThankYouRow, loadVersion);
       return;
     }
     if (key === 'meeting') {
       setThankYouMode(false);
-      await renderGiftFromUs();
+      await renderGiftFromUs(loadVersion);
       return;
     }
     if (template.source) {
       try {
         const response = await fetch(template.source);
         const source = await response.text();
+        if (loadVersion !== templateLoadVersion) return;
         els.sourceCode.value = source;
         const parsed = new DOMParser().parseFromString(source, 'text/html');
         const parsedTitle = parsed.querySelector('title')?.textContent.trim();
