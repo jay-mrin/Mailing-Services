@@ -229,6 +229,7 @@ Me</p>`
   let activeThankYouRow = null;
   let thankYouRenderVersion = 0;
   let templateLoadVersion = 0;
+  let templateLoading = false;
 
   function escapeHtml(value) {
     const div = document.createElement('div');
@@ -493,23 +494,30 @@ ${body}
 
   async function loadTemplate(key) {
     const loadVersion = ++templateLoadVersion;
+    templateLoading = true;
     const template = templates[key];
-    if (!template) return;
+    if (!template) {
+      templateLoading = false;
+      return;
+    }
 
     currentTemplate = key;
     setThankYouMode(key === 'newsletter');
     if (key === 'newsletter') {
       await renderSelectedThankYou(activeThankYouRow, loadVersion);
+      if (loadVersion === templateLoadVersion) templateLoading = false;
       return;
     }
     if (key === 'meeting') {
       setThankYouMode(false);
       await renderGiftFromUs(loadVersion);
+      if (loadVersion === templateLoadVersion) templateLoading = false;
       return;
     }
     if (template.source) {
       try {
         const response = await fetch(template.source);
+        if (!response.ok) throw new Error(`Could not load ${template.source}`);
         const source = await response.text();
         if (loadVersion !== templateLoadVersion) return;
         els.sourceCode.value = source;
@@ -517,6 +525,7 @@ ${body}
         const parsedTitle = parsed.querySelector('title')?.textContent.trim();
         if (parsedTitle && parsedTitle !== 'No Subject') els.subject.value = parsedTitle;
         renderSourceToPreview();
+        templateLoading = false;
         return;
       } catch (error) {
         console.warn('Could not load template source', error);
@@ -524,6 +533,7 @@ ${body}
     }
     els.subject.value = template.subject;
     setPreviewDocument(createEmailDoc(template.body, template.subject), true);
+    if (loadVersion === templateLoadVersion) templateLoading = false;
   }
 
   els.templateButtons.forEach(bindTemplateButton);
@@ -618,6 +628,10 @@ ${body}
   });
 
   els.sendBtn.addEventListener('click', async () => {
+    if (templateLoading) {
+      showToast('Please wait for the selected template to finish loading', 'warning');
+      return;
+    }
     const recipientInputs = Array.from(els.recipientList.querySelectorAll('.recipient-input'));
     const invalidRecipient = recipientInputs.find(input => input.value.trim() && !input.checkValidity());
     const recipientEntries = getRecipientEntries();
