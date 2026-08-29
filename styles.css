@@ -79,6 +79,21 @@ body {
 .logout-btn { border: 0; background: none; color: var(--text-muted); font: inherit; font-size: 12px; cursor: pointer; }
 .logout-btn:hover { color: var(--text-primary); }
 
+.send-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 180px;
+  min-width: 160px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.send-progress[hidden] { display: none; }
+.send-progress-track { height: 6px; flex: 1; overflow: hidden; border-radius: 99px; background: var(--bg-elevated); }
+.send-progress-fill { width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width .2s ease; }
+.send-progress span { min-width: 30px; text-align: right; }
+
 /* ===== App Container ===== */
 .app-container {
   max-width: 1440px;

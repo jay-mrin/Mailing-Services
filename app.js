@@ -233,7 +233,10 @@ Me</p>`
     loginPassword: $('#loginPassword'),
     rememberMe: $('#rememberMe'),
     authError: $('#authError'),
-    logoutBtn: $('#logoutBtn')
+    logoutBtn: $('#logoutBtn'),
+    sendProgress: $('#sendProgress'),
+    sendProgressFill: $('#sendProgressFill'),
+    sendProgressLabel: $('#sendProgressLabel')
   };
 
   let currentTemplate = 'welcome';
@@ -738,6 +741,9 @@ ${body}
 
     setStatus('Sending...', 'sending');
     els.sendBtn.disabled = true;
+    els.sendProgress.hidden = false;
+    els.sendProgressFill.style.width = '0%';
+    els.sendProgressLabel.textContent = '0%';
     try {
       const messages = await Promise.all(recipientEntries.map(async recipient => {
         let html = els.sourceCode.value;
@@ -760,15 +766,22 @@ ${body}
               : []
         };
       }));
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: els.subject.value, messages })
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Email delivery failed');
+      let sentCount = 0;
+      for (const message of messages) {
+        const response = await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subject: message.subject, messages: [message] })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || `Email delivery failed for ${message.email}`);
+        sentCount += 1;
+        const percent = Math.round((sentCount / messages.length) * 100);
+        els.sendProgressFill.style.width = `${percent}%`;
+        els.sendProgressLabel.textContent = `${percent}%`;
+      }
       setStatus('Email sent successfully', 'success');
-      showToast(`${result.sent || recipients.length} email(s) sent successfully`);
+      showToast(`${sentCount} email(s) sent successfully`);
     } catch (error) {
       setStatus('Email could not be sent', 'error');
       showToast(error.message || 'Email delivery failed', 'error');
