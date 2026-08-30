@@ -56,29 +56,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.auth-screen {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-  background: var(--bg-primary);
-}
-
-.auth-screen[hidden] { display: none; }
-.auth-card { width: min(380px, 100%); padding: 28px; border: 1px solid var(--border-color); border-radius: var(--radius-xl); background: var(--bg-secondary); box-shadow: var(--shadow-lg); }
-.auth-card h1 { margin-bottom: 6px; color: var(--text-primary); font-size: 22px; }
-.auth-card p { margin-bottom: 20px; color: var(--text-muted); font-size: 13px; }
-.auth-card input:not([type="checkbox"]) { width: 100%; margin-bottom: 12px; }
-.remember-label { display: flex; align-items: center; gap: 8px; margin: 4px 0 18px; color: var(--text-secondary); font-size: 12px; }
-.remember-label input { accent-color: var(--accent); }
-.auth-card .btn { width: 100%; justify-content: center; }
-.auth-error { min-height: 18px; margin-top: 12px; color: var(--danger); font-size: 12px; }
-
-.logout-btn { border: 0; background: none; color: var(--text-muted); font: inherit; font-size: 12px; cursor: pointer; }
-.logout-btn:hover { color: var(--text-primary); }
-
 .send-progress {
   display: inline-flex;
   align-items: center;

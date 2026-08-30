@@ -10,17 +10,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
 </head>
 <body>
-  <section class="auth-screen" id="authScreen">
-    <form class="auth-card" id="authForm">
-      <h1>ChristgardenMail</h1>
-      <p>Sign in to access your mail composer.</p>
-      <input id="loginUsername" type="text" placeholder="Username" autocomplete="username" required>
-      <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" required>
-      <label class="remember-label"><input id="rememberMe" type="checkbox"> Remember me for 30 days</label>
-      <button class="btn btn-primary" type="submit">Sign in</button>
-      <div class="auth-error" id="authError" role="alert"></div>
-    </form>
-  </section>
   <div class="app-container">
     <!-- Header -->
     <header class="app-header">
@@ -33,7 +22,6 @@
       </div>
       <div class="header-meta">
         <button class="history-btn" id="historyBtn" type="button">History</button>
-        <button class="logout-btn" id="logoutBtn" type="button">Log out</button>
         <span class="status-badge" id="connectionStatus">
           <span class="status-dot"></span> Ready
         </span>
@@ -59,6 +47,10 @@
         <button class="template-btn" data-template="followup">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           Order
+        </button>
+        <button class="template-btn" data-template="returning">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/></svg>
+          Returning
         </button>
       </div>
     </nav>

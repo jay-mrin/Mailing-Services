@@ -1,7 +1,6 @@
 const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
-const { requireAuth } = require('./auth');
 
 const seedTemplates = {
   faith: {
@@ -44,10 +43,11 @@ function escapeHtml(value) {
 }
 
 function personalizeHtml(html, name) {
-  if (!name) return html;
-  const safeName = escapeHtml(name);
-  return html
-    .replace(/\{\{\s*(?:name|recipient[_-]?name)\s*\}\}/gi, safeName)
+  const safeName = escapeHtml(name || 'Believer');
+  const personalized = html
+    .replace(/\{\{\s*(?:name|recipient[_-]?name)\s*\}\}/gi, safeName);
+  if (!name) return personalized;
+  return personalized
     .replace(/\bBeliever\b/gi, safeName)
     .replace(/\bBeliver\b/gi, safeName);
 }
@@ -167,7 +167,6 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
-  if (!requireAuth(req, res)) return;
 
   const { subject, messages } = req.body || {};
   if (!subject || !Array.isArray(messages) || !messages.length) {

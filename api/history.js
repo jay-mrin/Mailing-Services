@@ -1,5 +1,3 @@
-const { requireAuth } = require('./auth');
-
 function sendJson(res, status, body) {
   res.status(status).json(body);
 }
@@ -24,7 +22,6 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(204).end();
-  if (!requireAuth(req, res)) return;
   try {
     if (req.method === 'GET') {
       const response = await supabaseRequest('?select=recipient_email,recipient_name,sent_at&order=sent_at.desc&limit=1000');

@@ -95,6 +95,11 @@ Admin</p>`
 <p>Best,<br>
 Me</p>`
     },
+    returning: {
+      source: 'returning-template.html',
+      subject: 'Believer, Return & Sow Your 11 Seeds 🌱💜',
+      body: ''
+    },
     thanks: {
       subject: "Thank you for everything!",
       body: `<p>Hi,</p>
@@ -227,13 +232,6 @@ Me</p>`
     closeHistory: $('#closeHistory'),
     historyList: $('#historyList'),
     historyEmails: $('#historyEmails'),
-    authScreen: $('#authScreen'),
-    authForm: $('#authForm'),
-    loginUsername: $('#loginUsername'),
-    loginPassword: $('#loginPassword'),
-    rememberMe: $('#rememberMe'),
-    authError: $('#authError'),
-    logoutBtn: $('#logoutBtn'),
     sendProgress: $('#sendProgress'),
     sendProgressFill: $('#sendProgressFill'),
     sendProgressLabel: $('#sendProgressLabel')
@@ -246,34 +244,6 @@ Me</p>`
   let templateLoadVersion = 0;
   let templateLoading = false;
   let sentHistory = [];
-
-  async function initAuth() {
-    els.logoutBtn.addEventListener('click', async () => {
-      await fetch('/api/logout', { method: 'POST' });
-      window.location.reload();
-    });
-    try {
-      const response = await fetch('/api/session');
-      if (response.ok) {
-        els.authScreen.hidden = true;
-        return;
-      }
-    } catch (error) { /* show login */ }
-    els.authForm.addEventListener('submit', async event => {
-      event.preventDefault();
-      els.authError.textContent = '';
-      const response = await fetch('/api/login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: els.loginUsername.value, password: els.loginPassword.value, remember: els.rememberMe.checked })
-      });
-      if (!response.ok) {
-        els.authError.textContent = 'Invalid username or password.';
-        return;
-      }
-      els.authScreen.hidden = true;
-      loadHistory();
-    });
-  }
 
   function escapeHtml(value) {
     const div = document.createElement('div');
@@ -350,10 +320,11 @@ Me</p>`
   }
 
   function personalizeHtml(html, name = getFirstRecipientName()) {
-    if (!name) return html;
-    const safeName = escapeHtml(name);
-    return html
-      .replace(/\{\{\s*(?:name|recipient[_-]?name)\s*\}\}/gi, safeName)
+    const safeName = escapeHtml(name || 'Believer');
+    const personalized = html
+      .replace(/\{\{\s*(?:name|recipient[_-]?name)\s*\}\}/gi, safeName);
+    if (!name) return personalized;
+    return personalized
       .replace(/\bBeliever\b/gi, safeName)
       .replace(/\bBeliver\b/gi, safeName);
   }
@@ -859,8 +830,6 @@ ${body}
   loadHistory();
   loadTemplate('welcome');
   loadDraft();
-  initAuth();
-
   console.log('%c ChristgardenMail ', 'background:#6366f1;color:#fff;padding:4px 10px;border-radius:4px;font-weight:600;', 'Ready to compose!');
   console.log('Shortcuts: Ctrl+Enter = Send | Ctrl+S = Save Draft');
 
