@@ -252,8 +252,16 @@ body {
   margin: 0;
 }
 
-.order-request-field {
+.order-request-field,
+.order-seed-field {
   grid-column: 1 / -1;
+}
+
+.order-attachment-hint {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .order-fields textarea {
@@ -1263,7 +1271,8 @@ textarea.source-code:focus {
     grid-template-columns: 1fr;
   }
 
-  .order-request-field {
+  .order-request-field,
+  .order-seed-field {
     grid-column: auto;
   }
 

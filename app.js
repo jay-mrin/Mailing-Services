@@ -246,7 +246,8 @@ Me</p>`
     transactionId: $('#transactionId'),
     orderDate: $('#orderDate'),
     orderAmount: $('#orderAmount'),
-    orderRequest: $('#orderRequest')
+    orderRequest: $('#orderRequest'),
+    orderSeedPdf: $('#orderSeedPdf')
   };
 
   let currentTemplate = 'welcome';
@@ -349,8 +350,38 @@ Me</p>`
       transactionId: els.transactionId.value.trim(),
       date: els.orderDate.value,
       amount: els.orderAmount.value.trim(),
-      request: els.orderRequest.value.trim()
+      request: els.orderRequest.value.trim(),
+      seed: els.orderSeedPdf.value
     };
+  }
+
+  function sanitizeFilenamePart(value, fallback) {
+    const sanitized = String(value || fallback)
+      .normalize('NFKC')
+      .slice(0, 100)
+      .replace(/[^\p{L}\p{N}._-]+/gu, '_')
+      .replace(/^[_\.]+|[_\.]+$/g, '')
+      .replace(/_+/g, '_');
+    return sanitized || fallback;
+  }
+
+  function buildOrderAttachment() {
+    const values = getOrderValues();
+    const seed = seedOptions[values.seed];
+    if (!seed) return null;
+    const parts = [
+      sanitizeFilenamePart(values.name, 'Name'),
+      sanitizeFilenamePart(values.date, 'Date'),
+      sanitizeFilenamePart(values.orderId, 'Order_ID'),
+      sanitizeFilenamePart(values.transactionId, 'Transaction_ID'),
+      sanitizeFilenamePart(values.request, 'Request'),
+      sanitizeFilenamePart(seed.label, 'Seed_Book')
+    ];
+    let stem = parts.join('_');
+    const encoder = new TextEncoder();
+    while (encoder.encode(stem).length > 176) stem = stem.slice(0, -1);
+    stem = stem.replace(/[_\.]+$/g, '');
+    return { path: seed.pdf, filename: `${stem}.pdf` };
   }
 
   function formatOrderDate(value) {
@@ -376,10 +407,14 @@ Me</p>`
   function setOrderMode(enabled) {
     els.orderDetailsCard.hidden = !enabled;
     els.recipientsCard.classList.toggle('order-mode', enabled);
-    if (!enabled) return;
+    if (!enabled) {
+      renderAttachments();
+      return;
+    }
     const firstName = els.recipientList.querySelector('.recipient-name');
     if (firstName && !els.orderName.value) els.orderName.value = firstName.value;
     if (firstName) firstName.value = els.orderName.value;
+    renderAttachments();
   }
 
   function setOrderValues(values = {}) {
@@ -389,6 +424,7 @@ Me</p>`
     els.orderDate.value = values.date || '';
     els.orderAmount.value = values.amount || '';
     els.orderRequest.value = values.request || '';
+    els.orderSeedPdf.value = values.seed || '';
   }
 
   function addRecipientField(value = '', removable = true) {
@@ -675,6 +711,7 @@ ${body}
       if (firstName) firstName.value = els.orderName.value;
     }
     renderSourceToPreview();
+    renderAttachments();
   });
   els.subject.addEventListener('input', () => {
     if (currentTemplate !== 'order') updateSource();
@@ -725,8 +762,16 @@ ${body}
 
   function renderAttachments() {
     els.attachList.innerHTML = '';
-    attachments.forEach((file, index) => {
-      const size = file.size < 1024
+    const visibleAttachments = attachments.map((file, index) => ({ file, index, orderSeed: false }));
+    const orderAttachment = currentTemplate === 'order' ? buildOrderAttachment() : null;
+    if (orderAttachment) {
+      visibleAttachments.push({ file: { name: orderAttachment.filename, size: null }, orderSeed: true });
+    }
+    visibleAttachments.forEach(item => {
+      const { file } = item;
+      const size = file.size == null
+        ? 'Seed PDF'
+        : file.size < 1024
         ? `${file.size} B`
         : file.size < 1024 * 1024
           ? `${(file.size / 1024).toFixed(1)} KB`
@@ -734,12 +779,13 @@ ${body}
       const chip = document.createElement('div');
       chip.className = 'attach-chip';
       chip.innerHTML = `
-        <span>${escapeHtml(file.name)}</span>
+        <span title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</span>
         <span class="attach-size">${size}</span>
         <button type="button" title="Remove attachment" aria-label="Remove ${escapeHtml(file.name)}">&times;</button>
       `;
       chip.querySelector('button').addEventListener('click', () => {
-        attachments.splice(index, 1);
+        if (item.orderSeed) els.orderSeedPdf.value = '';
+        else attachments.splice(item.index, 1);
         renderAttachments();
       });
       els.attachList.appendChild(chip);
@@ -791,11 +837,12 @@ ${body}
         els.transactionId,
         els.orderDate,
         els.orderAmount,
-        els.orderRequest
+        els.orderRequest,
+        els.orderSeedPdf
       ].find(field => !field.value.trim());
       if (emptyOrderField) {
         setStatus('Please complete all order details', 'error');
-        showToast('All six order fields are required', 'error');
+        showToast('All order fields and a Seed PDF are required', 'error');
         emptyOrderField.focus();
         return;
       }
@@ -822,8 +869,9 @@ ${body}
           email: recipient.email,
           name: recipient.name,
           subject: messageSubject,
-          template: serverTemplate ? currentTemplate : undefined,
+          template: (serverTemplate || currentTemplate === 'order') ? currentTemplate : undefined,
           seed: selectedSeed,
+          orderDetails: currentTemplate === 'order' ? getOrderValues() : undefined,
           html: serverTemplate
             ? undefined
             : currentTemplate === 'order'

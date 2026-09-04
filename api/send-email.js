@@ -6,22 +6,27 @@ const DEFAULT_MAILBOX = 'sowyourseed@christgarden.church';
 
 const seedTemplates = {
   faith: {
+    label: 'Seed of Faith',
     html: 'assets/thank-you/Seeds_of_Faith_Gift_Email.html',
     attachments: ['assets/thank-you/Seeds_of_Faith.pdf']
   },
   love: {
+    label: 'Seed of Love',
     html: 'assets/thank-you/Seeds_of_Love_Gift_Email.html',
     attachments: ['assets/thank-you/Seeds_of_Love.pdf']
   },
   healing: {
+    label: 'Seed of Healing',
     html: 'assets/thank-you/Seeds_of_Healing_Gift_Email.html',
     attachments: ['assets/thank-you/Seeds_of_Healing.pdf']
   },
   hope: {
+    label: 'Seed of Hope',
     html: 'assets/thank-you/Seeds_of_Hope_Gift_Email.html',
     attachments: ['assets/thank-you/Seeds_of_Hope.pdf']
   },
   prayer: {
+    label: 'Seed of Prayer',
     html: 'assets/thank-you/Seeds_of_Prayer_Gift_Email.html',
     attachments: ['assets/thank-you/Seeds_of_Prayer.pdf']
   }
@@ -33,6 +38,9 @@ const giftFromUsTemplate = {
 };
 
 const templateCache = new Map();
+const allowedAttachmentPaths = new Set(
+  Object.values(seedTemplates).flatMap(template => template.attachments)
+);
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, character => ({
@@ -59,6 +67,38 @@ function readBoolean(value, fallback) {
   return /^(1|true|yes|on)$/i.test(value);
 }
 
+function sanitizeFilenamePart(value, fallback) {
+  const sanitized = String(value || fallback)
+    .normalize('NFKC')
+    .slice(0, 100)
+    .replace(/[^\p{L}\p{N}._-]+/gu, '_')
+    .replace(/^[_\.]+|[_\.]+$/g, '')
+    .replace(/_+/g, '_');
+  return sanitized || fallback;
+}
+
+function buildOrderAttachment(orderDetails, seedLabel) {
+  if (!orderDetails || typeof orderDetails !== 'object') throw new Error('Order details are required');
+  const requiredFields = ['name', 'date', 'orderId', 'transactionId', 'request'];
+  if (requiredFields.some(field => !String(orderDetails[field] || '').trim())) {
+    throw new Error('Order details are required');
+  }
+  const parts = [
+    sanitizeFilenamePart(orderDetails.name, 'Name'),
+    sanitizeFilenamePart(orderDetails.date, 'Date'),
+    sanitizeFilenamePart(orderDetails.orderId, 'Order_ID'),
+    sanitizeFilenamePart(orderDetails.transactionId, 'Transaction_ID'),
+    sanitizeFilenamePart(orderDetails.request, 'Request'),
+    sanitizeFilenamePart(seedLabel, 'Seed_Book')
+  ];
+  let stem = parts.join('_');
+  if (Buffer.byteLength(stem, 'utf8') > 176) {
+    while (Buffer.byteLength(stem, 'utf8') > 176) stem = stem.slice(0, -1);
+    stem = stem.replace(/[_\.]+$/g, '');
+  }
+  return `${stem}.pdf`;
+}
+
 function readTemplate(relativePath) {
   if (!templateCache.has(relativePath)) {
     const filePath = path.join(process.cwd(), relativePath);
@@ -70,9 +110,10 @@ function readTemplate(relativePath) {
 
 function resolveMessageContent(message) {
   let html = message.html;
-  let attachmentNames = Array.isArray(message.attachments)
+  let attachmentNames = (Array.isArray(message.attachments)
     ? message.attachments
-    : message.attachments ? [message.attachments] : [];
+    : message.attachments ? [message.attachments] : [])
+    .filter(item => typeof item === 'string');
 
   if (message.template === 'newsletter') {
     const template = seedTemplates[message.seed];
@@ -82,6 +123,14 @@ function resolveMessageContent(message) {
   } else if (message.template === 'meeting') {
     html = readTemplate(giftFromUsTemplate.html);
     attachmentNames = giftFromUsTemplate.attachments;
+  } else if (message.template === 'order') {
+    const orderDetails = message.orderDetails;
+    const template = seedTemplates[orderDetails?.seed];
+    if (!template) throw new Error('Choose a valid Seed PDF');
+    attachmentNames = [{
+      relativePath: template.attachments[0],
+      filename: buildOrderAttachment(orderDetails, template.label)
+    }];
   }
 
   if (!html) throw new Error('Email content is required');
@@ -89,10 +138,14 @@ function resolveMessageContent(message) {
 }
 
 function createFileAttachments(attachmentNames) {
-  return attachmentNames.map(relativePath => {
-    const filename = path.basename(relativePath);
-    if (!relativePath.startsWith('assets/thank-you/') || filename !== relativePath.split('/').pop()) {
+  return attachmentNames.map(attachment => {
+    const relativePath = typeof attachment === 'string' ? attachment : attachment.relativePath;
+    const filename = typeof attachment === 'string' ? path.basename(relativePath) : attachment.filename;
+    if (!allowedAttachmentPaths.has(relativePath)) {
       throw new Error('Invalid attachment path');
+    }
+    if (typeof filename !== 'string' || !filename.endsWith('.pdf') || Buffer.byteLength(filename, 'utf8') > 180 || /[\\/\r\n\0]/.test(filename)) {
+      throw new Error('Invalid attachment filename');
     }
     const filePath = path.join(process.cwd(), relativePath);
     if (!fs.existsSync(filePath)) throw new Error(`Attachment not found: ${filename}`);
@@ -101,7 +154,7 @@ function createFileAttachments(attachmentNames) {
 }
 
 function publicDeliveryError(error) {
-  if (/^(Email template not found|Attachment not found|Invalid attachment path|Unknown seed email template|Email content is required)/.test(error.message)) {
+  if (/^(Email template not found|Attachment not found|Invalid attachment path|Invalid attachment filename|Unknown seed email template|Choose a valid Seed PDF|Order details are required|Email content is required)/.test(error.message)) {
     return error.message;
   }
   if (error.code === 'EAUTH') return 'Hostinger rejected the SMTP username or mailbox password';
