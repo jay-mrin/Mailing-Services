@@ -2,6 +2,8 @@ const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
 
+const DEFAULT_MAILBOX = 'sowyourseed@christgarden.church';
+
 const seedTemplates = {
   faith: {
     html: 'assets/thank-you/Seeds_of_Faith_Gift_Email.html',
@@ -52,6 +54,11 @@ function personalizeHtml(html, name) {
     .replace(/\bBeliver\b/gi, safeName);
 }
 
+function readBoolean(value, fallback) {
+  if (value == null || value === '') return fallback;
+  return /^(1|true|yes|on)$/i.test(value);
+}
+
 function readTemplate(relativePath) {
   if (!templateCache.has(relativePath)) {
     const filePath = path.join(process.cwd(), relativePath);
@@ -97,7 +104,7 @@ function publicDeliveryError(error) {
   if (/^(Email template not found|Attachment not found|Invalid attachment path|Unknown seed email template|Email content is required)/.test(error.message)) {
     return error.message;
   }
-  if (error.code === 'EAUTH') return 'SMTP authentication failed';
+  if (error.code === 'EAUTH') return 'Hostinger rejected the SMTP username or mailbox password';
   if (['ECONNECTION', 'ECONNREFUSED', 'ECONNRESET', 'EDNS', 'ETIMEDOUT'].includes(error.code)) {
     return 'Could not connect to the email server';
   }
@@ -110,9 +117,9 @@ async function saveToSentFolder(mailOptions, rawMessage) {
   const client = new ImapFlow({
     host: process.env.IMAP_HOST || 'imap.hostinger.com',
     port: Number(process.env.IMAP_PORT || 993),
-    secure: true,
+    secure: readBoolean(process.env.IMAP_SECURE, true),
     auth: {
-      user: process.env.IMAP_USER || process.env.SMTP_USER,
+      user: process.env.IMAP_USER || process.env.SMTP_USER || DEFAULT_MAILBOX,
       pass: process.env.IMAP_PASSWORD || process.env.SMTP_PASSWORD
     },
     logger: false
@@ -172,16 +179,19 @@ module.exports = async function handler(req, res) {
   if (!subject || !Array.isArray(messages) || !messages.length) {
     return sendJson(res, 400, { error: 'Subject and at least one message are required' });
   }
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
-    return sendJson(res, 500, { error: 'SMTP environment variables are not configured' });
+  if (!process.env.SMTP_PASSWORD) {
+    return sendJson(res, 500, { error: 'The Hostinger mailbox password is not configured' });
   }
 
+  const smtpPort = Number(process.env.SMTP_PORT || 465);
+  const smtpUser = process.env.SMTP_USER || DEFAULT_MAILBOX;
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.hostinger.com',
-    port: Number(process.env.SMTP_PORT || 465),
-    secure: Number(process.env.SMTP_PORT || 465) === 465,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD }
+    port: smtpPort,
+    secure: readBoolean(process.env.SMTP_SECURE, smtpPort === 465),
+    auth: { user: smtpUser, pass: process.env.SMTP_PASSWORD }
   });
+  const senderAddress = process.env.SMTP_FROM || smtpUser;
 
   try {
     const validMessages = messages.filter(message => message.email && (message.html || message.template));
@@ -193,7 +203,8 @@ module.exports = async function handler(req, res) {
       const attachments = createFileAttachments(resolved.attachmentNames);
       const converted = inlineDataImages(resolved.html);
       const mailOptions = {
-        from: process.env.SMTP_USER,
+        from: senderAddress,
+        replyTo: senderAddress,
         to: message.email,
         subject: message.subject || subject,
         html: converted.html,

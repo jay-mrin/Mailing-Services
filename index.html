@@ -46,11 +46,15 @@
         </button>
         <button class="template-btn" data-template="followup">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          Order
+          Follow Up
         </button>
         <button class="template-btn" data-template="returning">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/></svg>
           Returning
+        </button>
+        <button class="template-btn" data-template="order">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="17" y2="13"/><line x1="9" y1="17" x2="17" y2="17"/></svg>
+          Order
         </button>
       </div>
     </nav>
@@ -75,6 +79,39 @@
               <button class="add-recipient-btn" id="addRecipient" type="button" aria-label="Add another recipient">
                 <span aria-hidden="true">+</span> Add another recipient
               </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card order-details-card" id="orderDetailsCard" hidden>
+          <div class="card-header">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6"/><line x1="9" y1="13" x2="17" y2="13"/></svg>
+            <h3>Order Details</h3>
+          </div>
+          <div class="card-body order-fields">
+            <div class="form-group">
+              <label for="orderName">Name <span class="required">*</span></label>
+              <input type="text" id="orderName" placeholder="Believer's name" autocomplete="name" required>
+            </div>
+            <div class="form-group">
+              <label for="orderId">Order ID <span class="required">*</span></label>
+              <input type="text" id="orderId" placeholder="Enter order ID" required>
+            </div>
+            <div class="form-group">
+              <label for="transactionId">Transaction ID <span class="required">*</span></label>
+              <input type="text" id="transactionId" placeholder="Enter transaction ID" required>
+            </div>
+            <div class="form-group">
+              <label for="orderDate">Date <span class="required">*</span></label>
+              <input type="date" id="orderDate" required>
+            </div>
+            <div class="form-group">
+              <label for="orderAmount">Amount <span class="required">*</span></label>
+              <input type="text" id="orderAmount" placeholder="$7.00" inputmode="decimal" required>
+            </div>
+            <div class="form-group order-request-field">
+              <label for="orderRequest">Your Request <span class="required">*</span></label>
+              <textarea id="orderRequest" placeholder="Enter the customer's request" rows="4" required></textarea>
             </div>
           </div>
         </div>

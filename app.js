@@ -100,6 +100,11 @@ Me</p>`
       subject: 'Believer, Return & Sow Your 11 Seeds 🌱💜',
       body: ''
     },
+    order: {
+      source: 'order-template.html',
+      subject: '† Your Seed Was Sown 🌱 ,We Have Something for You | Here are the Details',
+      body: ''
+    },
     thanks: {
       subject: "Thank you for everything!",
       body: `<p>Hi,</p>
@@ -234,7 +239,14 @@ Me</p>`
     historyEmails: $('#historyEmails'),
     sendProgress: $('#sendProgress'),
     sendProgressFill: $('#sendProgressFill'),
-    sendProgressLabel: $('#sendProgressLabel')
+    sendProgressLabel: $('#sendProgressLabel'),
+    orderDetailsCard: $('#orderDetailsCard'),
+    orderName: $('#orderName'),
+    orderId: $('#orderId'),
+    transactionId: $('#transactionId'),
+    orderDate: $('#orderDate'),
+    orderAmount: $('#orderAmount'),
+    orderRequest: $('#orderRequest')
   };
 
   let currentTemplate = 'welcome';
@@ -277,13 +289,14 @@ Me</p>`
   }
 
   function getRecipientEntries() {
-    return Array.from(els.recipientList.querySelectorAll('.recipient-row'))
+    const entries = Array.from(els.recipientList.querySelectorAll('.recipient-row'))
       .map(row => ({
         email: row.querySelector('.recipient-input')?.value.trim() || '',
         name: row.querySelector('.recipient-name')?.value.trim() || '',
         seed: row.querySelector('.seed-select')?.value || 'faith'
       }))
       .filter(recipient => recipient.email);
+    return currentTemplate === 'order' ? entries.slice(0, 1) : entries;
   }
 
   function getRecipients() {
@@ -327,6 +340,55 @@ Me</p>`
     return personalized
       .replace(/\bBeliever\b/gi, safeName)
       .replace(/\bBeliver\b/gi, safeName);
+  }
+
+  function getOrderValues() {
+    return {
+      name: els.orderName.value.trim(),
+      orderId: els.orderId.value.trim(),
+      transactionId: els.transactionId.value.trim(),
+      date: els.orderDate.value,
+      amount: els.orderAmount.value.trim(),
+      request: els.orderRequest.value.trim()
+    };
+  }
+
+  function formatOrderDate(value) {
+    if (!value) return 'Date_Input';
+    const [year, month, day] = value.split('-').map(Number);
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }).format(new Date(year, month - 1, day));
+  }
+
+  function renderOrderHtml(html, name = els.orderName.value.trim()) {
+    const values = getOrderValues();
+    return personalizeHtml(html, name)
+      .replace(/Order_id_Input/gi, escapeHtml(values.orderId || 'Order_id_Input'))
+      .replace(/Transaction_id_input/gi, escapeHtml(values.transactionId || 'Transaction_id_input'))
+      .replace(/Date_Input/gi, escapeHtml(formatOrderDate(values.date)))
+      .replace(/Amount_Input/gi, escapeHtml(values.amount || 'Amount_Input'))
+      .replace(/Request_input/gi, escapeHtml(values.request || 'Request_input').replace(/\n/g, '<br>'));
+  }
+
+  function setOrderMode(enabled) {
+    els.orderDetailsCard.hidden = !enabled;
+    els.recipientsCard.classList.toggle('order-mode', enabled);
+    if (!enabled) return;
+    const firstName = els.recipientList.querySelector('.recipient-name');
+    if (firstName && !els.orderName.value) els.orderName.value = firstName.value;
+    if (firstName) firstName.value = els.orderName.value;
+  }
+
+  function setOrderValues(values = {}) {
+    els.orderName.value = values.name || '';
+    els.orderId.value = values.orderId || '';
+    els.transactionId.value = values.transactionId || '';
+    els.orderDate.value = values.date || '';
+    els.orderAmount.value = values.amount || '';
+    els.orderRequest.value = values.request || '';
   }
 
   function addRecipientField(value = '', removable = true) {
@@ -548,6 +610,7 @@ ${body}
 
     currentTemplate = key;
     setThankYouMode(key === 'newsletter');
+    setOrderMode(key === 'order');
     if (key === 'newsletter') {
       await renderSelectedThankYou(activeThankYouRow, loadVersion);
       if (loadVersion === templateLoadVersion) templateLoading = false;
@@ -606,14 +669,25 @@ ${body}
       else renderSourceToPreview();
     }
   });
-  els.subject.addEventListener('input', updateSource);
+  els.orderDetailsCard.addEventListener('input', event => {
+    if (event.target === els.orderName) {
+      const firstName = els.recipientList.querySelector('.recipient-name');
+      if (firstName) firstName.value = els.orderName.value;
+    }
+    renderSourceToPreview();
+  });
+  els.subject.addEventListener('input', () => {
+    if (currentTemplate !== 'order') updateSource();
+  });
   function renderSourceToPreview() {
     const source = els.sourceCode.value;
     const parsed = new DOMParser().parseFromString(source, 'text/html');
     const parsedTitle = parsed.querySelector('title')?.textContent.trim();
     if (parsedTitle && parsedTitle !== 'No Subject') els.subject.value = parsedTitle;
     const selectedName = activeThankYouRow?.querySelector('.recipient-name')?.value.trim() || getFirstRecipientName();
-    setPreviewDocument(personalizeHtml(source, selectedName));
+    setPreviewDocument(currentTemplate === 'order'
+      ? renderOrderHtml(source, els.orderName.value.trim())
+      : personalizeHtml(source, selectedName));
   }
 
   // Keep the preview live while editing, with the play button available for an explicit render.
@@ -686,7 +760,8 @@ ${body}
       showToast('Please wait for the selected template to finish loading', 'warning');
       return;
     }
-    const recipientInputs = Array.from(els.recipientList.querySelectorAll('.recipient-input'));
+    const allRecipientInputs = Array.from(els.recipientList.querySelectorAll('.recipient-input'));
+    const recipientInputs = currentTemplate === 'order' ? allRecipientInputs.slice(0, 1) : allRecipientInputs;
     const invalidRecipient = recipientInputs.find(input => input.value.trim() && !input.checkValidity());
     const recipientEntries = getRecipientEntries();
     const recipients = recipientEntries.map(recipient => recipient.email);
@@ -708,6 +783,22 @@ ${body}
       showToast('Subject is required', 'error');
       els.subject.focus();
       return;
+    }
+    if (currentTemplate === 'order') {
+      const emptyOrderField = [
+        els.orderName,
+        els.orderId,
+        els.transactionId,
+        els.orderDate,
+        els.orderAmount,
+        els.orderRequest
+      ].find(field => !field.value.trim());
+      if (emptyOrderField) {
+        setStatus('Please complete all order details', 'error');
+        showToast('All six order fields are required', 'error');
+        emptyOrderField.focus();
+        return;
+      }
     }
 
     setStatus('Sending...', 'sending');
@@ -733,7 +824,11 @@ ${body}
           subject: messageSubject,
           template: serverTemplate ? currentTemplate : undefined,
           seed: selectedSeed,
-          html: serverTemplate ? undefined : personalizeHtml(html, recipient.name),
+          html: serverTemplate
+            ? undefined
+            : currentTemplate === 'order'
+              ? renderOrderHtml(html, els.orderName.value.trim())
+              : personalizeHtml(html, recipient.name),
           attachments: []
         };
       }));
@@ -774,6 +869,7 @@ ${body}
       recipients: getRecipientEntries(),
       subject: els.subject.value,
       body: getBodyHtml(),
+      orderDetails: currentTemplate === 'order' ? getOrderValues() : undefined,
       savedAt: new Date().toISOString()
     };
     localStorage.setItem('christgardenmail_draft', JSON.stringify(draft));
@@ -785,6 +881,8 @@ ${body}
     if (!window.confirm('Are you sure you want to clear everything?')) return;
     setRecipients();
     setThankYouMode(false);
+    setOrderMode(false);
+    setOrderValues();
     els.subject.value = '';
     attachments = [];
     renderAttachments();
@@ -805,9 +903,12 @@ ${body}
         : (draft.subject || '');
       currentTemplate = draft.template || 'custom';
       setThankYouMode(currentTemplate === 'newsletter');
+      setOrderValues(draft.orderDetails);
+      setOrderMode(currentTemplate === 'order');
       els.templateButtons.forEach(button => button.classList.toggle('active', button.dataset.template === currentTemplate));
       if (currentTemplate === 'newsletter') renderSelectedThankYou();
       else if (currentTemplate === 'meeting') renderGiftFromUs();
+      else if (currentTemplate === 'order') loadTemplate('order');
       else setPreviewDocument(createEmailDoc(draft.body || '', draft.subject || ''), true);
       setStatus('Draft restored from last session');
     } catch (error) {

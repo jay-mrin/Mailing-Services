@@ -238,6 +238,56 @@ body {
   color: #fff;
 }
 
+.order-details-card[hidden] {
+  display: none;
+}
+
+.order-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.order-fields .form-group {
+  margin: 0;
+}
+
+.order-request-field {
+  grid-column: 1 / -1;
+}
+
+.order-fields textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.order-fields textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.recipients-card.order-mode .recipient-name,
+.recipients-card.order-mode .remove-recipient-btn,
+.recipients-card.order-mode .seed-select,
+.recipients-card.order-mode .recipient-row:not(:first-child),
+.recipients-card.order-mode .add-recipient-btn {
+  display: none;
+}
+
+.recipients-card.order-mode .recipient-row .recipient-input {
+  flex: 1;
+}
+
 /* ===== Workspace ===== */
 .workspace {
   display: flex;
@@ -1207,6 +1257,14 @@ textarea.source-code:focus {
   .form-row {
     flex-direction: column;
     gap: 0;
+  }
+
+  .order-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .order-request-field {
+    grid-column: auto;
   }
 
   .action-bar {
