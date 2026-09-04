@@ -253,7 +253,8 @@ body {
 }
 
 .order-request-field,
-.order-seed-field {
+.order-seed-field,
+.order-amount-field {
   grid-column: 1 / -1;
 }
 
@@ -262,6 +263,18 @@ body {
   font-size: 11px;
   line-height: 1.45;
   overflow-wrap: anywhere;
+}
+
+.amount-control {
+  display: grid;
+  grid-template-columns: 105px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.amount-control select,
+.amount-control input {
+  width: 100%;
+  min-width: 0;
 }
 
 .order-fields textarea {
@@ -1272,7 +1285,8 @@ textarea.source-code:focus {
   }
 
   .order-request-field,
-  .order-seed-field {
+  .order-seed-field,
+  .order-amount-field {
     grid-column: auto;
   }
 

@@ -245,6 +245,7 @@ Me</p>`
     orderId: $('#orderId'),
     transactionId: $('#transactionId'),
     orderDate: $('#orderDate'),
+    orderCurrency: $('#orderCurrency'),
     orderAmount: $('#orderAmount'),
     orderRequest: $('#orderRequest'),
     orderSeedPdf: $('#orderSeedPdf')
@@ -349,6 +350,7 @@ Me</p>`
       orderId: els.orderId.value.trim(),
       transactionId: els.transactionId.value.trim(),
       date: els.orderDate.value,
+      currency: els.orderCurrency.value,
       amount: els.orderAmount.value.trim(),
       request: els.orderRequest.value.trim(),
       seed: els.orderSeedPdf.value
@@ -394,13 +396,29 @@ Me</p>`
     }).format(new Date(year, month - 1, day));
   }
 
+  function formatOrderAmount(value, currency) {
+    if (!value) return 'Amount_Input';
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return `${currency} ${value}`;
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }).format(amount);
+    } catch (error) {
+      return `${currency} ${amount.toFixed(2)}`;
+    }
+  }
+
   function renderOrderHtml(html, name = els.orderName.value.trim()) {
     const values = getOrderValues();
     return personalizeHtml(html, name)
       .replace(/Order_id_Input/gi, escapeHtml(values.orderId || 'Order_id_Input'))
       .replace(/Transaction_id_input/gi, escapeHtml(values.transactionId || 'Transaction_id_input'))
       .replace(/Date_Input/gi, escapeHtml(formatOrderDate(values.date)))
-      .replace(/Amount_Input/gi, escapeHtml(values.amount || 'Amount_Input'))
+      .replace(/Amount_Input/gi, escapeHtml(formatOrderAmount(values.amount, values.currency)))
       .replace(/Request_input/gi, escapeHtml(values.request || 'Request_input').replace(/\n/g, '<br>'));
   }
 
@@ -422,7 +440,16 @@ Me</p>`
     els.orderId.value = values.orderId || '';
     els.transactionId.value = values.transactionId || '';
     els.orderDate.value = values.date || '';
-    els.orderAmount.value = values.amount || '';
+    const savedAmount = String(values.amount || '');
+    const inferredCurrency = savedAmount.includes('₹') ? 'INR'
+      : savedAmount.includes('€') ? 'EUR'
+        : savedAmount.includes('£') ? 'GBP'
+          : /\bCHF\b/i.test(savedAmount) ? 'CHF'
+            : values.currency || 'USD';
+    els.orderCurrency.value = Array.from(els.orderCurrency.options).some(option => option.value === inferredCurrency)
+      ? inferredCurrency
+      : 'USD';
+    els.orderAmount.value = savedAmount.replace(/,/g, '').replace(/[^0-9.-]/g, '');
     els.orderRequest.value = values.request || '';
     els.orderSeedPdf.value = values.seed || '';
   }
@@ -831,19 +858,28 @@ ${body}
       return;
     }
     if (currentTemplate === 'order') {
-      const emptyOrderField = [
+      const orderFields = [
         els.orderName,
         els.orderId,
         els.transactionId,
         els.orderDate,
+        els.orderCurrency,
         els.orderAmount,
         els.orderRequest,
         els.orderSeedPdf
-      ].find(field => !field.value.trim());
+      ];
+      const emptyOrderField = orderFields.find(field => !field.value.trim());
       if (emptyOrderField) {
         setStatus('Please complete all order details', 'error');
         showToast('All order fields and a Seed PDF are required', 'error');
         emptyOrderField.focus();
+        return;
+      }
+      const invalidOrderField = orderFields.find(field => !field.checkValidity());
+      if (invalidOrderField) {
+        setStatus('Please check the order details', 'error');
+        showToast('Enter a valid amount and order details', 'error');
+        invalidOrderField.focus();
         return;
       }
     }

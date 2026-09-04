@@ -41,6 +41,7 @@ const templateCache = new Map();
 const allowedAttachmentPaths = new Set(
   Object.values(seedTemplates).flatMap(template => template.attachments)
 );
+const allowedCurrencies = new Set(['USD', 'EUR', 'GBP', 'INR', 'CAD', 'AUD', 'CHF']);
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>'"]/g, character => ({
@@ -79,10 +80,14 @@ function sanitizeFilenamePart(value, fallback) {
 
 function buildOrderAttachment(orderDetails, seedLabel) {
   if (!orderDetails || typeof orderDetails !== 'object') throw new Error('Order details are required');
-  const requiredFields = ['name', 'date', 'orderId', 'transactionId', 'request'];
+  const requiredFields = ['name', 'date', 'orderId', 'transactionId', 'request', 'amount'];
   if (requiredFields.some(field => !String(orderDetails[field] || '').trim())) {
     throw new Error('Order details are required');
   }
+  const currency = orderDetails.currency || 'USD';
+  const amount = Number(String(orderDetails.amount).replace(/,/g, '').replace(/[^0-9.-]/g, ''));
+  if (!allowedCurrencies.has(currency)) throw new Error('Choose a valid currency');
+  if (!Number.isFinite(amount) || amount < 0) throw new Error('Enter a valid order amount');
   const parts = [
     sanitizeFilenamePart(orderDetails.name, 'Name'),
     sanitizeFilenamePart(orderDetails.date, 'Date'),
@@ -154,7 +159,7 @@ function createFileAttachments(attachmentNames) {
 }
 
 function publicDeliveryError(error) {
-  if (/^(Email template not found|Attachment not found|Invalid attachment path|Invalid attachment filename|Unknown seed email template|Choose a valid Seed PDF|Order details are required|Email content is required)/.test(error.message)) {
+  if (/^(Email template not found|Attachment not found|Invalid attachment path|Invalid attachment filename|Unknown seed email template|Choose a valid Seed PDF|Choose a valid currency|Enter a valid order amount|Order details are required|Email content is required)/.test(error.message)) {
     return error.message;
   }
   if (error.code === 'EAUTH') return 'Hostinger rejected the SMTP username or mailbox password';
