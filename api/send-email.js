@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
+const { readSession } = require('../lib/mail-session');
 
 const DEFAULT_MAILBOX = 'sowyourseed@christgarden.church';
 
@@ -170,15 +171,15 @@ function publicDeliveryError(error) {
   return 'Email delivery failed';
 }
 
-async function saveToSentFolder(mailOptions, rawMessage) {
+async function saveToSentFolder(mailOptions, rawMessage, session) {
   const { ImapFlow } = await import('imapflow');
   const client = new ImapFlow({
     host: process.env.IMAP_HOST || 'imap.hostinger.com',
     port: Number(process.env.IMAP_PORT || 993),
     secure: readBoolean(process.env.IMAP_SECURE, true),
     auth: {
-      user: process.env.IMAP_USER || process.env.SMTP_USER || DEFAULT_MAILBOX,
-      pass: process.env.IMAP_PASSWORD || process.env.SMTP_PASSWORD
+      user: session?.email || process.env.IMAP_USER || process.env.SMTP_USER || DEFAULT_MAILBOX,
+      pass: session?.password || process.env.IMAP_PASSWORD || process.env.SMTP_PASSWORD
     },
     logger: false
   });
@@ -237,19 +238,23 @@ module.exports = async function handler(req, res) {
   if (!subject || !Array.isArray(messages) || !messages.length) {
     return sendJson(res, 400, { error: 'Subject and at least one message are required' });
   }
-  if (!process.env.SMTP_PASSWORD) {
+  const session = readSession(req);
+  if (!session && (req.headers.cookie || '').includes('mail_session=')) {
+    return sendJson(res, 401, { error: 'Your mail login expired. Please log in again.' });
+  }
+  if (!session && !process.env.SMTP_PASSWORD) {
     return sendJson(res, 500, { error: 'The Hostinger mailbox password is not configured' });
   }
 
   const smtpPort = Number(process.env.SMTP_PORT || 465);
-  const smtpUser = process.env.SMTP_USER || DEFAULT_MAILBOX;
+  const smtpUser = session?.email || process.env.SMTP_USER || DEFAULT_MAILBOX;
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.hostinger.com',
     port: smtpPort,
     secure: readBoolean(process.env.SMTP_SECURE, smtpPort === 465),
-    auth: { user: smtpUser, pass: process.env.SMTP_PASSWORD }
+    auth: { user: smtpUser, pass: session?.password || process.env.SMTP_PASSWORD }
   });
-  const senderAddress = process.env.SMTP_FROM || smtpUser;
+  const senderAddress = session ? smtpUser : process.env.SMTP_FROM || smtpUser;
 
   try {
     const validMessages = messages.filter(message => message.email && (message.html || message.template));
@@ -272,7 +277,7 @@ module.exports = async function handler(req, res) {
       const info = await transporter.sendMail(mailOptions);
       let savedToSent = false;
       try {
-        await saveToSentFolder(mailOptions, rawMessage.message);
+        await saveToSentFolder(mailOptions, rawMessage.message, session);
         savedToSent = true;
       } catch (sentError) {
         console.warn('Message sent but could not be copied to Hostinger Sent:', sentError.message);

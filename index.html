@@ -25,6 +25,13 @@
         <span class="status-badge" id="connectionStatus">
           <span class="status-dot"></span> Ready
         </span>
+        <div class="account-menu">
+          <button class="history-btn account-toggle" id="accountToggle" type="button" aria-label="Mail account options" aria-expanded="false" aria-controls="accountMenu">&#8942;</button>
+          <div id="accountMenu" class="account-dropdown" hidden>
+            <button id="mailLoginOpen" type="button">Login / Update password</button>
+            <button id="mailLogout" type="button" hidden>Log out</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -222,7 +229,7 @@
     <!-- Footer -->
     <footer class="app-footer">
       <p>ChristgardenMail — Personal Email Composer</p>
-      <p>All data stays in your browser. No server required.</p>
+      <p>Mail is delivered through your Hostinger account.</p>
     </footer>
   </div>
 
@@ -239,6 +246,18 @@
     </div>
   </div>
 
+  <dialog id="mailLoginDialog" class="history-dialog mail-login-dialog" aria-labelledby="mailLoginTitle">
+    <div class="history-dialog-header"><h2 id="mailLoginTitle">Hostinger mail login</h2><button id="mailLoginClose" type="button" aria-label="Close login">&times;</button></div>
+    <form id="mailLoginForm" class="card-body">
+      <p class="mail-login-help">Enter your Hostinger mailbox credentials. To update a saved password, enter the new password here. This does not change your password at Hostinger.</p>
+      <div class="form-group"><label for="mailLoginEmail">Email</label><input id="mailLoginEmail" type="email" autocomplete="username" maxlength="254" required></div>
+      <div class="form-group"><label for="mailLoginPassword">Password</label><input id="mailLoginPassword" type="password" autocomplete="current-password" maxlength="512" required></div>
+      <p class="mail-login-help">Your login is remembered securely in this browser for 30 days.</p>
+      <p id="mailLoginStatus" role="status" aria-live="polite"></p>
+      <button id="mailLoginSave" class="history-btn" type="submit">Login &amp; save</button>
+    </form>
+  </dialog>
+  <script src="mail-login.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

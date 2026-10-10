@@ -1326,3 +1326,12 @@ textarea.source-code:focus {
     flex-basis: auto;
   }
 }
+.account-menu { position: relative; }
+.account-toggle { font-size: 24px; line-height: 1; min-width: 36px; }
+.account-dropdown { position: absolute; right: 0; top: calc(100% + 8px); width: 230px; padding: 6px; z-index: 20; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: var(--shadow-lg); }
+.account-dropdown button { width: 100%; text-align: left; padding: 12px; border: 0; border-radius: 6px; background: transparent; color: var(--text-primary); cursor: pointer; }
+.account-dropdown button:hover { background: var(--bg-tertiary); }
+.mail-login-dialog { margin: auto; padding: 0; color: var(--text-primary); }
+.mail-login-dialog::backdrop { background: rgba(0, 0, 0, .65); }
+.mail-login-help { color: var(--text-muted); font-size: 13px; line-height: 1.6; margin-bottom: 18px; }
+#mailLoginStatus { font-size: 13px; line-height: 1.5; margin-bottom: 16px; }
